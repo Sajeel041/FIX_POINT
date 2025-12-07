@@ -5,13 +5,23 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 3000,
-    hmr: {
-      // Disable HMR in production to prevent WebSocket errors
-      protocol: process.env.NODE_ENV === 'production' ? undefined : 'ws',
-    },
   },
   build: {
-    // Disable source maps in production for smaller builds
     sourcemap: false,
+    minify: 'esbuild',
+    target: 'es2015',
+    rollupOptions: {
+      output: {
+        format: 'es',
+        // Prevent eval usage
+        generatedCode: {
+          constBindings: true,
+        },
+      },
+    },
+  },
+  esbuild: {
+    // Avoid eval in esbuild
+    legalComments: 'none',
   },
 });

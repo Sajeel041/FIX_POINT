@@ -3,7 +3,23 @@ import axios from 'axios';
 
 const AuthContext = createContext();
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// Get API URL - ensure it's always absolute
+let API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+// Ensure API_URL doesn't have trailing slash and is absolute
+if (API_URL) {
+  API_URL = API_URL.trim().replace(/\/$/, '');
+  // If it's a relative path in production, that's an error
+  if (import.meta.env.PROD && !API_URL.startsWith('http')) {
+    console.error('⚠️ VITE_API_URL must be a full URL (e.g., https://your-backend.vercel.app/api)');
+    API_URL = ''; // Will cause errors, but at least it's clear
+  }
+}
+
+// Warn if API URL is not set in production
+if (import.meta.env.PROD && (!import.meta.env.VITE_API_URL || !API_URL)) {
+  console.error('⚠️ VITE_API_URL is not set! Set it in Vercel: Settings → Environment Variables → Add VITE_API_URL = https://your-backend.vercel.app/api');
+}
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
