@@ -35,26 +35,44 @@ app.get('/api/health', (req, res) => {
 const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI;
 
-if (!MONGO_URI) {
-  console.error('❌ MONGO_URI is not defined in .env file');
-  console.error('📝 Please create a .env file in the backend folder with your MongoDB Atlas connection string');
-  console.error('📖 See SETUP_MONGODB.md for detailed instructions');
-  process.exit(1);
-}
+// MongoDB connection function
+const connectDB = async () => {
+  if (!MONGO_URI) {
+    console.error('❌ MONGO_URI is not defined in .env file');
+    console.error('📝 Please create a .env file in the backend folder with your MongoDB Atlas connection string');
+    console.error('📖 See SETUP_MONGODB.md for detailed instructions');
+    throw new Error('MONGO_URI is not defined');
+  }
 
-mongoose
-  .connect(MONGO_URI)
-  .then(() => {
+  // If already connected, return
+  if (mongoose.connection.readyState === 1) {
+    return;
+  }
+
+  try {
+    await mongoose.connect(MONGO_URI);
     console.log('✅ Connected to MongoDB');
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-    });
-  })
-  .catch((error) => {
+  } catch (error) {
     console.error('❌ MongoDB connection error:', error.message);
     console.error('📝 Please check your MONGO_URI in .env file');
     console.error('📖 See SETUP_MONGODB.md for help');
-    process.exit(1);
-  });
+    throw error;
+  }
+};
+
+// Only start server if not in Vercel serverless environment
+// Vercel will use the api/index.js file instead
+if (process.env.VERCEL !== '1') {
+  connectDB()
+    .then(() => {
+      app.listen(PORT, () => {
+        console.log(`🚀 Server running on port ${PORT}`);
+      });
+    })
+    .catch((error) => {
+      console.error('Failed to start server:', error);
+      process.exit(1);
+    });
+}
 
 export default app;
