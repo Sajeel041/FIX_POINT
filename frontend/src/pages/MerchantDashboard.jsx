@@ -78,19 +78,40 @@ const MerchantDashboard = () => {
         return;
       }
 
-      await axios.post(`${API_URL}/service-requests/accept`, {
+      const url = `${API_URL}/service-requests/accept`;
+      console.log('Submitting price to:', url);
+      console.log('Request data:', {
         requestId: selectedRequest._id,
         price: parseFloat(priceData.price),
         negotiable: priceData.negotiable,
       });
+
+      const response = await axios.post(url, {
+        requestId: selectedRequest._id,
+        price: parseFloat(priceData.price),
+        negotiable: priceData.negotiable,
+      });
+      
       toast.success('Request accepted! Customer will see you in their list.');
       setShowPriceModal(false);
       setSelectedRequest(null);
       setPriceData({ price: '', negotiable: false });
-      window.location.reload();
+      
+      // Refresh data instead of full page reload
+      const [profileRes, bookingsRes, requestsRes] = await Promise.all([
+        axios.get(`${API_URL}/merchants/profile`).catch(() => ({ data: { profile: null } })),
+        axios.get(`${API_URL}/bookings/merchant/${user._id}`).catch(() => ({ data: [] })),
+        axios.get(`${API_URL}/service-requests/available`).catch(() => ({ data: [] })),
+      ]);
+      
+      if (profileRes.data.profile) setProfile(profileRes.data.profile);
+      setBookings(bookingsRes.data);
+      setAvailableRequests(requestsRes.data);
     } catch (error) {
       console.error('Accept request error:', error);
-      toast.error(error.response?.data?.message || 'Failed to accept request');
+      console.error('Error response:', error.response);
+      console.error('API URL used:', `${API_URL}/service-requests/accept`);
+      toast.error(error.response?.data?.message || error.message || 'Failed to accept request');
     }
   };
 
