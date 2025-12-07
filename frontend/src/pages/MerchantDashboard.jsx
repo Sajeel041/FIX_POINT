@@ -120,13 +120,15 @@ const MerchantDashboard = () => {
   const toggleAvailability = async () => {
     try {
       const newStatus = profile.availability === 'online' ? 'offline' : 'online';
-      await axios.post(`${API_URL}/merchants/update`, {
+      const response = await axios.post(`${API_URL}/merchants/update`, {
         availability: newStatus,
       });
+      setProfile({ ...profile, availability: newStatus });
       toast.success(`Status changed to ${newStatus}`);
-      window.location.reload();
     } catch (error) {
-      toast.error('Failed to update status');
+      console.error('Toggle availability error:', error);
+      console.error('API URL:', `${API_URL}/merchants/update`);
+      toast.error(error.response?.data?.message || 'Failed to update status');
     }
   };
 

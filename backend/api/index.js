@@ -31,6 +31,6 @@ const connectDB = async () => {
 // Connect on module load
 connectDB();
 
-// Export the app for Vercel
+// Export the app for Vercel (Express apps work directly)
 export default app;
 
