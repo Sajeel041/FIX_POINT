@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 3000,
+    hmr: false, // Disable HMR completely
   },
   build: {
     sourcemap: false,
@@ -13,7 +14,6 @@ export default defineConfig({
     rollupOptions: {
       output: {
         format: 'es',
-        // Prevent eval usage
         generatedCode: {
           constBindings: true,
         },
@@ -21,7 +21,10 @@ export default defineConfig({
     },
   },
   esbuild: {
-    // Avoid eval in esbuild
     legalComments: 'none',
+  },
+  define: {
+    // Disable HMR in production
+    'import.meta.hot': 'undefined',
   },
 });
