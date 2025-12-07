@@ -1,0 +1,116 @@
+import express from 'express';
+import Message from '../models/Message.js';
+import Booking from '../models/Booking.js';
+import { protect } from '../middleware/auth.js';
+
+const router = express.Router();
+
+// @route   POST /api/chat/send
+// @desc    Send a message
+// @access  Private
+router.post('/send', protect, async (req, res) => {
+  try {
+    const { bookingId, message } = req.body;
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ message: 'Message cannot be empty' });
+    }
+
+    // Verify booking exists and user is part of it
+    const booking = await Booking.findById(bookingId);
+
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    // Check if user is customer or merchant in this booking
+    const isCustomer = booking.customerId.toString() === req.user._id.toString();
+    const isMerchant = booking.merchantId.toString() === req.user._id.toString();
+
+    if (!isCustomer && !isMerchant) {
+      return res.status(403).json({ message: 'Not authorized to send messages for this booking' });
+    }
+
+    // Determine receiver
+    const receiverId = isCustomer ? booking.merchantId : booking.customerId;
+
+    // Create message
+    const newMessage = await Message.create({
+      bookingId,
+      senderId: req.user._id,
+      receiverId,
+      message: message.trim(),
+    });
+
+    await newMessage.populate('senderId', 'name email');
+    await newMessage.populate('receiverId', 'name email');
+
+    res.status(201).json(newMessage);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// @route   GET /api/chat/booking/:bookingId
+// @desc    Get all messages for a booking
+// @access  Private
+router.get('/booking/:bookingId', protect, async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+
+    // Verify booking exists and user is part of it
+    const booking = await Booking.findById(bookingId);
+
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    // Check if user is customer or merchant in this booking
+    const isCustomer = booking.customerId.toString() === req.user._id.toString();
+    const isMerchant = booking.merchantId.toString() === req.user._id.toString();
+
+    if (!isCustomer && !isMerchant) {
+      return res.status(403).json({ message: 'Not authorized to view messages for this booking' });
+    }
+
+    // Get all messages for this booking
+    const messages = await Message.find({ bookingId })
+      .populate('senderId', 'name email')
+      .populate('receiverId', 'name email')
+      .sort({ createdAt: 1 }); // Oldest first
+
+    // Mark messages as read if they're for the current user
+    await Message.updateMany(
+      {
+        bookingId,
+        receiverId: req.user._id,
+        read: false,
+      },
+      { read: true }
+    );
+
+    res.json(messages);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   GET /api/chat/unread-count
+// @desc    Get unread message count for user
+// @access  Private
+router.get('/unread-count', protect, async (req, res) => {
+  try {
+    const unreadCount = await Message.countDocuments({
+      receiverId: req.user._id,
+      read: false,
+    });
+
+    res.json({ unreadCount });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+export default router;
+
+
