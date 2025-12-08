@@ -24,14 +24,9 @@ export default defineConfig({
     legalComments: 'none',
   },
   define: {
-    // Disable HMR in production and development builds
+    // Completely disable HMR in all builds
     'import.meta.hot': 'undefined',
+    'import.meta.env.DEV': 'false',
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production'),
   },
-  // Explicitly disable HMR for production builds
-  ...(process.env.NODE_ENV === 'production' && {
-    server: {
-      hmr: false,
-    },
-  }),
 });

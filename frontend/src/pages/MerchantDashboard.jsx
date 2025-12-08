@@ -27,37 +27,60 @@ const MerchantDashboard = () => {
     certifications: '',
   });
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [profileRes, bookingsRes, requestsRes] = await Promise.all([
-          axios.get(`${API_URL}/auth/me`),
-          axios.get(`${API_URL}/bookings/merchant/${user._id}`),
-          axios.get(`${API_URL}/service-requests/available`).catch(() => ({ data: [] })),
-        ]);
-        setProfile(profileRes.data.profile);
-        setBookings(bookingsRes.data);
-        setAvailableRequests(requestsRes.data || []);
-        if (profileRes.data.profile) {
-          setFormData({
-            skillCategory: profileRes.data.profile.skillCategory || '',
-            yearsExperience: profileRes.data.profile.yearsExperience || '',
-            about: profileRes.data.profile.about || '',
-            availability: profileRes.data.profile.availability || 'offline',
-            certifications: profileRes.data.profile.certifications?.join(', ') || '',
-          });
-        }
-      } catch (error) {
-        toast.error('Failed to load data');
-      } finally {
-        setLoading(false);
+  // Fetch all data including available requests
+  const fetchData = async () => {
+    try {
+      const [profileRes, bookingsRes, requestsRes] = await Promise.all([
+        axios.get(`${API_URL}/auth/me`),
+        axios.get(`${API_URL}/bookings/merchant/${user._id}`),
+        axios.get(`${API_URL}/service-requests/available`).catch(() => ({ data: [] })),
+      ]);
+      setProfile(profileRes.data.profile);
+      setBookings(bookingsRes.data);
+      setAvailableRequests(requestsRes.data || []);
+      if (profileRes.data.profile) {
+        setFormData({
+          skillCategory: profileRes.data.profile.skillCategory || '',
+          yearsExperience: profileRes.data.profile.yearsExperience || '',
+          about: profileRes.data.profile.about || '',
+          availability: profileRes.data.profile.availability || 'offline',
+          certifications: profileRes.data.profile.certifications?.join(', ') || '',
+        });
       }
-    };
-
-    if (user) {
-      fetchData();
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      // Don't show toast on polling errors, only on initial load
+      if (loading) {
+        toast.error('Failed to load data');
+      }
+    } finally {
+      setLoading(false);
     }
-  }, [user]);
+  };
+
+  useEffect(() => {
+    if (!user) return;
+
+    // Initial fetch
+    fetchData();
+    
+    // Poll for new service requests every 5 seconds
+    const interval = setInterval(() => {
+      // Only poll for available requests (lightweight request)
+      axios.get(`${API_URL}/service-requests/available`)
+        .then((response) => {
+          setAvailableRequests(response.data || []);
+        })
+        .catch((error) => {
+          // Silently handle errors during polling
+          if (error.response?.status !== 401) {
+            console.error('Error polling for new requests:', error);
+          }
+        });
+    }, 5000); // Poll every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [user, API_URL]);
 
   const handleAcceptRequest = (request) => {
     setSelectedRequest(request);

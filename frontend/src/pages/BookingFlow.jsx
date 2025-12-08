@@ -20,40 +20,6 @@ const BookingFlow = () => {
   });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  // Restore requestId from localStorage on mount
-  const [requestId, setRequestId] = useState(() => {
-    const saved = localStorage.getItem('activeServiceRequestId');
-    return saved || null;
-  });
-  const [acceptedMerchants, setAcceptedMerchants] = useState([]);
-  const [selectedMerchant, setSelectedMerchant] = useState(null);
-  const [merchantsLoading, setMerchantsLoading] = useState(false);
-
-  // Restore step from localStorage if requestId exists
-  useEffect(() => {
-    const savedRequestId = localStorage.getItem('activeServiceRequestId');
-    if (savedRequestId) {
-      setRequestId(savedRequestId);
-      // Check if request is still valid and what step we should be on
-      const checkRequestStatus = async () => {
-        try {
-          const { data } = await axios.get(`${API_URL}/service-requests/${savedRequestId}`);
-          setAcceptedMerchants(data.acceptedMerchants || []);
-          // If merchants are accepted, go to step 3, otherwise stay at step 3
-          if (data.acceptedMerchants && data.acceptedMerchants.length > 0) {
-            setStep(3);
-          } else if (data.status === 'pending' || data.status === 'offerSubmitted') {
-            setStep(3);
-          }
-        } catch (error) {
-          // Request might not exist, clear it
-          localStorage.removeItem('activeServiceRequestId');
-          setRequestId(null);
-        }
-      };
-      checkRequestStatus();
-    }
-  }, []);
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -69,42 +35,6 @@ const BookingFlow = () => {
 
     fetchServices();
   }, []);
-
-  // Poll for accepted merchants if request is created
-  useEffect(() => {
-    if (requestId && step === 3) {
-      // Initial fetch
-      const fetchMerchants = async () => {
-        try {
-          const { data } = await axios.get(
-            `${API_URL}/service-requests/${requestId}`
-          );
-          setAcceptedMerchants(data.acceptedMerchants || []);
-          
-          // If request is completed or cancelled, clear localStorage
-          if (data.status === 'completed' || data.status === 'cancelled' || data.status === 'active') {
-            localStorage.removeItem('activeServiceRequestId');
-          }
-        } catch (error) {
-          if (error.response?.status === 404) {
-            // Request not found, clear it
-            localStorage.removeItem('activeServiceRequestId');
-            setRequestId(null);
-            setStep(1);
-          } else {
-            console.error('Error fetching merchants:', error);
-          }
-        }
-      };
-
-      fetchMerchants();
-      
-      // Poll every 3 seconds
-      const interval = setInterval(fetchMerchants, 3000);
-
-      return () => clearInterval(interval);
-    }
-  }, [requestId, step]);
 
   const handleServiceSelect = (service) => {
     setFormData({ ...formData, serviceType: service.name });
@@ -122,37 +52,11 @@ const BookingFlow = () => {
         location: formData.location,
       });
 
-      setRequestId(data._id);
-      // Persist requestId to localStorage
-      localStorage.setItem('activeServiceRequestId', data._id);
-      toast.success('Service request created! Waiting for merchants...');
-      setStep(3);
+      toast.success('Service request created successfully!');
+      // Redirect to customer dashboard after successful submission
+      navigate('/customer/dashboard');
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to create request');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleSelectMerchant = async (merchant) => {
-    setSelectedMerchant(merchant);
-    setSubmitting(true);
-
-    try {
-      const { data } = await axios.post(
-        `${API_URL}/service-requests/select-merchant`,
-        {
-          requestId: requestId,
-          merchantId: merchant.merchantId._id,
-        }
-      );
-
-      // Clear the active request from localStorage since it's now converted to a booking
-      localStorage.removeItem('activeServiceRequestId');
-      toast.success('Merchant selected! Booking confirmed.');
-      navigate(`/booking/${data.booking._id}`);
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to select merchant');
       setSubmitting(false);
     }
   };
@@ -162,9 +66,9 @@ const BookingFlow = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 pb-24">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-        {/* Progress Steps - Mobile Optimized */}
+        {/* Progress Steps - Only 2 Steps */}
         <div className="flex items-center justify-center mb-6 sm:mb-8 overflow-x-auto pb-2">
-          {[1, 2, 3, 4].map((s) => (
+          {[1, 2].map((s) => (
             <div key={s} className="flex items-center">
               <div
                 className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-bold text-sm sm:text-base transition-all ${
@@ -175,7 +79,7 @@ const BookingFlow = () => {
               >
                 {s}
               </div>
-              {s < 4 && (
+              {s < 2 && (
                 <div
                   className={`w-12 sm:w-20 h-1.5 mx-1 sm:mx-2 rounded-full transition-all ${
                     step > s ? 'bg-black' : 'bg-gray-300'
@@ -286,103 +190,6 @@ const BookingFlow = () => {
                 {submitting ? 'Submitting Request...' : 'Submit Request'}
               </button>
             </form>
-          </motion.div>
-        )}
-
-        {/* Step 3: Wait for Merchants / Show Accepted Merchants */}
-        {step === 3 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-2xl shadow-md p-4 sm:p-6 lg:p-8"
-          >
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">
-              Available Technicians
-            </h2>
-
-            {acceptedMerchants.length === 0 ? (
-              <div className="text-center py-12 sm:py-16">
-                <div className="animate-spin rounded-full h-14 w-14 sm:h-16 sm:w-16 border-t-3 border-b-3 border-black mx-auto mb-4"></div>
-                <p className="text-gray-700 mb-2 font-medium text-base sm:text-lg">
-                  Waiting for technicians to accept your request...
-                </p>
-                <p className="text-sm sm:text-base text-gray-500 px-4">
-                  Your request has been sent. Technicians will see it and can accept.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3 sm:space-y-4">
-                <p className="text-gray-700 mb-4 font-semibold text-sm sm:text-base">
-                  {acceptedMerchants.length} technician{acceptedMerchants.length > 1 ? 's' : ''} have accepted your request. Select one:
-                </p>
-                {acceptedMerchants.map((item, index) => {
-                  const merchant = item.merchantId || item;
-                  const price = item.price;
-                  const negotiable = item.negotiable;
-                  return (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      className={`p-4 sm:p-6 border-2 rounded-xl cursor-pointer transition-all active:scale-[0.98] ${
-                        selectedMerchant?.merchantId?._id === merchant._id ||
-                        selectedMerchant?._id === merchant._id
-                          ? 'border-black bg-gray-50 shadow-md'
-                          : 'border-gray-200 hover:border-gray-400 bg-white'
-                      }`}
-                      onClick={() => !submitting && handleSelectMerchant(item)}
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                        <div className="flex items-center flex-1 min-w-0">
-                          <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-gray-200 to-gray-300 rounded-full flex items-center justify-center text-2xl sm:text-3xl mr-3 sm:mr-4 flex-shrink-0">
-                            👤
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-gray-900 text-base sm:text-lg truncate">
-                              {merchant.name}
-                            </h3>
-                            <p className="text-xs sm:text-sm text-gray-600 truncate">
-                              {merchant.email}
-                            </p>
-                            {merchant.phone && (
-                              <p className="text-xs text-gray-500 mt-1">
-                                📞 {merchant.phone}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4">
-                          {price && (
-                            <div className="text-left sm:text-right">
-                              <p className="font-bold text-lg sm:text-xl text-gray-900">
-                                PKR {price}
-                              </p>
-                              {negotiable && (
-                                <p className="text-xs text-green-600 font-semibold">
-                                  Negotiable
-                                </p>
-                              )}
-                            </div>
-                          )}
-                          <div>
-                            {submitting &&
-                            (selectedMerchant?.merchantId?._id === merchant._id ||
-                              selectedMerchant?._id === merchant._id) ? (
-                              <div className="animate-spin rounded-full h-7 w-7 border-t-2 border-b-2 border-black"></div>
-                            ) : (
-                              <button className="px-5 sm:px-6 py-2.5 sm:py-3 bg-black text-white rounded-xl hover:bg-gray-800 active:scale-95 transition-all font-semibold text-sm sm:text-base shadow-md whitespace-nowrap">
-                                Select
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            )}
           </motion.div>
         )}
       </div>
