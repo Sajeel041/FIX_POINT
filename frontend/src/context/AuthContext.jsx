@@ -123,48 +123,22 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      // Clear any existing token first
-      localStorage.removeItem('token');
-      delete axios.defaults.headers.common['Authorization'];
-
       const { data } = await axios.post(`${API_URL}/auth/login`, {
         email,
         password,
       });
-
-      // Validate response
-      if (!data || !data.token) {
-        return {
-          success: false,
-          message: 'Invalid response from server',
-        };
-      }
-
       // Ensure roles array exists
-      if (!data.roles || data.roles.length === 0) {
+      if (!data.roles) {
         data.roles = [data.role || 'customer'];
       }
-
-      // Set token and user
       setUser(data);
       setToken(data.token);
       localStorage.setItem('token', data.token);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
-
-      return { 
-        success: true, 
-        user: data,
-        token: data.token 
-      };
+      return { success: true };
     } catch (error) {
-      console.error('Login error:', error);
-      // Clear any partial token
-      localStorage.removeItem('token');
-      delete axios.defaults.headers.common['Authorization'];
-      
       return {
         success: false,
-        message: error.response?.data?.message || error.message || 'Login failed',
+        message: error.response?.data?.message || 'Login failed',
       };
     }
   };
