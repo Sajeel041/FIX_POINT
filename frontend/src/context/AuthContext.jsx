@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
 const AuthContext = createContext();
@@ -21,17 +21,82 @@ if (import.meta.env.PROD && (!import.meta.env.VITE_API_URL || !API_URL)) {
   console.error('⚠️ VITE_API_URL is not set! Set it in Vercel: Settings → Environment Variables → Add VITE_API_URL = https://your-backend.vercel.app/api');
 }
 
+// Set up axios interceptor to include token in all requests
+const setupAxiosInterceptor = () => {
+  // Request interceptor to add token
+  axios.interceptors.request.use(
+    (config) => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    },
+    (error) => {
+      return Promise.reject(error);
+    }
+  );
+
+  // Response interceptor to handle 401 errors
+  axios.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      if (error.response?.status === 401) {
+        // Token expired or invalid - clear it
+        localStorage.removeItem('token');
+        // Only redirect if not already on login page
+        if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+          // Dispatch event to notify AuthContext
+          window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+        }
+      }
+      return Promise.reject(error);
+    }
+  );
+};
+
+// Initialize axios interceptor once
+setupAxiosInterceptor();
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(localStorage.getItem('token'));
+  const tokenFromStorage = localStorage.getItem('token');
+  const [token, setToken] = useState(tokenFromStorage);
+  const isInitialized = useRef(false);
 
-  // Set axios default header
+  // Set axios default header synchronously on mount
   useEffect(() => {
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    const storedToken = localStorage.getItem('token');
+    if (storedToken) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+      setToken(storedToken);
     } else {
       delete axios.defaults.headers.common['Authorization'];
+      setToken(null);
+    }
+    isInitialized.current = true;
+  }, []);
+
+  // Listen for unauthorized events
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setUser(null);
+      setToken(null);
+      delete axios.defaults.headers.common['Authorization'];
+    };
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
+  }, []);
+
+  // Update axios header when token changes
+  useEffect(() => {
+    if (isInitialized.current) {
+      if (token) {
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      } else {
+        delete axios.defaults.headers.common['Authorization'];
+      }
     }
   }, [token]);
 

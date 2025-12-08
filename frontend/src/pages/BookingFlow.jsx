@@ -20,10 +20,40 @@ const BookingFlow = () => {
   });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [requestId, setRequestId] = useState(null);
+  // Restore requestId from localStorage on mount
+  const [requestId, setRequestId] = useState(() => {
+    const saved = localStorage.getItem('activeServiceRequestId');
+    return saved || null;
+  });
   const [acceptedMerchants, setAcceptedMerchants] = useState([]);
   const [selectedMerchant, setSelectedMerchant] = useState(null);
   const [merchantsLoading, setMerchantsLoading] = useState(false);
+
+  // Restore step from localStorage if requestId exists
+  useEffect(() => {
+    const savedRequestId = localStorage.getItem('activeServiceRequestId');
+    if (savedRequestId) {
+      setRequestId(savedRequestId);
+      // Check if request is still valid and what step we should be on
+      const checkRequestStatus = async () => {
+        try {
+          const { data } = await axios.get(`${API_URL}/service-requests/${savedRequestId}`);
+          setAcceptedMerchants(data.acceptedMerchants || []);
+          // If merchants are accepted, go to step 3, otherwise stay at step 3
+          if (data.acceptedMerchants && data.acceptedMerchants.length > 0) {
+            setStep(3);
+          } else if (data.status === 'pending' || data.status === 'offerSubmitted') {
+            setStep(3);
+          }
+        } catch (error) {
+          // Request might not exist, clear it
+          localStorage.removeItem('activeServiceRequestId');
+          setRequestId(null);
+        }
+      };
+      checkRequestStatus();
+    }
+  }, []);
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -43,16 +73,34 @@ const BookingFlow = () => {
   // Poll for accepted merchants if request is created
   useEffect(() => {
     if (requestId && step === 3) {
-      const interval = setInterval(async () => {
+      // Initial fetch
+      const fetchMerchants = async () => {
         try {
           const { data } = await axios.get(
             `${API_URL}/service-requests/${requestId}`
           );
           setAcceptedMerchants(data.acceptedMerchants || []);
+          
+          // If request is completed or cancelled, clear localStorage
+          if (data.status === 'completed' || data.status === 'cancelled' || data.status === 'active') {
+            localStorage.removeItem('activeServiceRequestId');
+          }
         } catch (error) {
-          console.error('Error fetching merchants:', error);
+          if (error.response?.status === 404) {
+            // Request not found, clear it
+            localStorage.removeItem('activeServiceRequestId');
+            setRequestId(null);
+            setStep(1);
+          } else {
+            console.error('Error fetching merchants:', error);
+          }
         }
-      }, 3000); // Poll every 3 seconds
+      };
+
+      fetchMerchants();
+      
+      // Poll every 3 seconds
+      const interval = setInterval(fetchMerchants, 3000);
 
       return () => clearInterval(interval);
     }
@@ -75,6 +123,8 @@ const BookingFlow = () => {
       });
 
       setRequestId(data._id);
+      // Persist requestId to localStorage
+      localStorage.setItem('activeServiceRequestId', data._id);
       toast.success('Service request created! Waiting for merchants...');
       setStep(3);
     } catch (error) {
@@ -97,6 +147,8 @@ const BookingFlow = () => {
         }
       );
 
+      // Clear the active request from localStorage since it's now converted to a booking
+      localStorage.removeItem('activeServiceRequestId');
       toast.success('Merchant selected! Booking confirmed.');
       navigate(`/booking/${data.booking._id}`);
     } catch (error) {
