@@ -4,12 +4,26 @@
     {
       "src": "api/index.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "api/cleanup.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
+      "src": "/api/cleanup/reset-all",
+      "dest": "/api/cleanup.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "/api/index.js"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cleanup/reset-all",
+      "schedule": "0 */6 * * *"
     }
   ]
 }
