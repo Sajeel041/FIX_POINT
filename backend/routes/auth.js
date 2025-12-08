@@ -8,6 +8,9 @@ const router = express.Router();
 
 // Generate JWT Token
 const generateToken = (id) => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET is not defined in environment variables');
+  }
   return jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: '30d',
   });
@@ -72,6 +75,17 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    // Check if JWT_SECRET is configured
+    if (!process.env.JWT_SECRET) {
+      console.error('❌ JWT_SECRET is not configured');
+      return res.status(500).json({ message: 'Server configuration error' });
+    }
+
     // Find user
     const user = await User.findOne({ email });
     if (!user) {
@@ -84,18 +98,29 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    const token = generateToken(user._id);
+    // Generate token
+    let token;
+    try {
+      token = generateToken(user._id);
+    } catch (jwtError) {
+      console.error('❌ JWT generation error:', jwtError);
+      return res.status(500).json({ message: 'Token generation failed' });
+    }
 
     res.json({
       _id: user._id,
       name: user.name,
       email: user.email,
-      role: user.role,
-      roles: user.roles || [user.role],
+      role: user.role || (user.roles && user.roles[0]) || 'customer',
+      roles: user.roles || [user.role || 'customer'],
       token,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('❌ Login error:', error);
+    res.status(500).json({ 
+      message: error.message || 'Login failed',
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 

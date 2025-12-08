@@ -5,6 +5,20 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FixPoint - Home Service Marketplace</title>
+    <script>
+      // Block WebSocket connections to prevent HMR errors in production
+      if (typeof window !== 'undefined') {
+        const originalWebSocket = window.WebSocket;
+        window.WebSocket = function(...args) {
+          const url = args[0];
+          if (url && (url.includes('/ws/') || url.includes('/merchant/ws/') || url.includes('/booking/ws/'))) {
+            console.warn('Blocked WebSocket connection to:', url);
+            return null;
+          }
+          return new originalWebSocket(...args);
+        };
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

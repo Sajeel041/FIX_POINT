@@ -22,20 +22,29 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
 
-    const result = await login(formData.email, formData.password);
+    try {
+      const result = await login(formData.email, formData.password);
 
-    if (result.success) {
-      toast.success('Login successful!');
-      if (result.user?.role === 'customer') {
-        navigate('/customer/dashboard');
+      if (result.success) {
+        toast.success('Login successful!');
+        // Use roles to determine dashboard, fallback to role field
+        const userRole = result.user?.roles?.[0] || result.user?.role || 'customer';
+        if (userRole === 'customer') {
+          navigate('/customer/dashboard');
+        } else if (userRole === 'merchant') {
+          navigate('/merchant/dashboard');
+        } else {
+          navigate('/customer/dashboard'); // Default fallback
+        }
       } else {
-        navigate('/merchant/dashboard');
+        toast.error(result.message || 'Login failed');
       }
-    } else {
-      toast.error(result.message || 'Login failed');
+    } catch (error) {
+      console.error('Login error:', error);
+      toast.error('An unexpected error occurred. Please try again.');
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
