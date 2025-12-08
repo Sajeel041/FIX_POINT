@@ -8,7 +8,6 @@ import bookingRoutes from './routes/booking.js';
 import serviceRoutes from './routes/service.js';
 import serviceRequestRoutes from './routes/serviceRequest.js';
 import chatRoutes from './routes/chat.js';
-import cleanupRoutes from './routes/cleanup.js';
 
 dotenv.config();
 
@@ -26,7 +25,6 @@ app.use('/api/bookings', bookingRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/service-requests', serviceRequestRoutes);
 app.use('/api/chat', chatRoutes);
-app.use('/api/cleanup', cleanupRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
