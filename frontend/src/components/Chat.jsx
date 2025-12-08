@@ -46,6 +46,10 @@ const Chat = ({ bookingId, onClose, otherUser }) => {
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || sending) return;
+    if (!bookingId) {
+      toast.error('Booking ID is missing');
+      return;
+    }
 
     setSending(true);
     try {
@@ -57,7 +61,16 @@ const Chat = ({ bookingId, onClose, otherUser }) => {
       setNewMessage('');
       scrollToBottom();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to send message');
+      console.error('Send message error:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to send message';
+      
+      if (error.response?.status === 403) {
+        toast.error('You are not authorized to send messages for this booking');
+      } else if (error.response?.status === 401) {
+        toast.error('Please log in again');
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setSending(false);
     }
