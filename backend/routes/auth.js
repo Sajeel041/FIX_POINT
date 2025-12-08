@@ -1,5 +1,6 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 import User from '../models/User.js';
 import MerchantProfile from '../models/MerchantProfile.js';
 import { protect } from '../middleware/auth.js';
@@ -86,8 +87,17 @@ router.post('/login', async (req, res) => {
       return res.status(500).json({ message: 'Server configuration error' });
     }
 
+    // Check MongoDB connection before querying
+    if (mongoose.connection.readyState !== 1) {
+      console.error('❌ MongoDB not connected. Connection state:', mongoose.connection.readyState);
+      return res.status(500).json({ 
+        message: 'Database connection error. Please try again.',
+        error: 'MongoDB connection not established'
+      });
+    }
+
     // Find user
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).maxTimeMS(5000); // 5 second timeout
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
