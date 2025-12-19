@@ -461,7 +461,9 @@ const MerchantDashboard = () => {
                                   toast.success('Job marked as completed');
                                   window.location.reload();
                                 } catch (error) {
-                                  toast.error('Failed to update booking');
+                                  console.error('Error marking as completed:', error);
+                                  const errorMessage = error.response?.data?.message || 'Failed to update booking';
+                                  toast.error(errorMessage);
                                 }
                               }}
                               className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl text-sm sm:text-base hover:from-green-600 hover:to-green-700 active:scale-95 transition-all font-semibold shadow-md"

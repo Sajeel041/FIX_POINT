@@ -75,6 +75,37 @@ router.get('/merchant/:id', protect, async (req, res) => {
   }
 });
 
+// @route   GET /api/bookings/:id
+// @desc    Get a single booking by ID
+// @access  Private
+router.get('/:id', protect, async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id)
+      .populate('customerId', 'name email phone')
+      .populate('merchantId', 'name email phone');
+
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    // Check authorization - user must be either customer or merchant of this booking
+    const customerId = booking.customerId._id ? booking.customerId._id.toString() : booking.customerId.toString();
+    const merchantId = booking.merchantId._id ? booking.merchantId._id.toString() : booking.merchantId.toString();
+    const userId = req.user._id.toString();
+
+    const isCustomer = userId === customerId;
+    const isMerchant = userId === merchantId;
+
+    if (!isCustomer && !isMerchant) {
+      return res.status(403).json({ message: 'Not authorized to view this booking' });
+    }
+
+    res.json(booking);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // @route   PATCH /api/bookings/status
 // @desc    Update booking status
 // @access  Private
@@ -88,19 +119,27 @@ router.patch('/status', protect, async (req, res) => {
       return res.status(404).json({ message: 'Booking not found' });
     }
 
-    // Check authorization
+    // Check authorization - handle both ObjectId and populated objects
+    const merchantIdStr = booking.merchantId._id 
+      ? booking.merchantId._id.toString() 
+      : booking.merchantId.toString();
+    const customerIdStr = booking.customerId._id 
+      ? booking.customerId._id.toString() 
+      : booking.customerId.toString();
+    const userIdStr = req.user._id.toString();
+
     if (
       req.user.roles && req.user.roles.includes('merchant') &&
-      booking.merchantId.toString() !== req.user._id.toString()
+      merchantIdStr !== userIdStr
     ) {
-      return res.status(403).json({ message: 'Not authorized' });
+      return res.status(403).json({ message: 'Not authorized to update this booking' });
     }
 
     if (
       req.user.roles && req.user.roles.includes('customer') &&
-      booking.customerId.toString() !== req.user._id.toString()
+      customerIdStr !== userIdStr
     ) {
-      return res.status(403).json({ message: 'Not authorized' });
+      return res.status(403).json({ message: 'Not authorized to update this booking' });
     }
 
     booking.status = status;
@@ -119,7 +158,10 @@ router.patch('/status', protect, async (req, res) => {
 
     res.json(booking);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error('Error updating booking status:', error);
+    res.status(400).json({ 
+      message: error.message || 'Failed to update booking status' 
+    });
   }
 });
 

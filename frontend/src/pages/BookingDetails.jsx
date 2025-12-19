@@ -20,27 +20,20 @@ const BookingDetails = () => {
   useEffect(() => {
     const fetchBooking = async () => {
       try {
-        const endpoint =
-          user?.role === 'customer'
-            ? `${API_URL}/bookings/user/${user._id}`
-            : `${API_URL}/bookings/merchant/${user._id}`;
-        const { data } = await axios.get(endpoint);
-        const foundBooking = data.find((b) => b._id === id);
-        if (!foundBooking) {
-          toast.error('Booking not found');
-          navigate('/');
-          return;
-        }
-        setBooking(foundBooking);
+        // Fetch booking directly by ID
+        const { data } = await axios.get(`${API_URL}/bookings/${id}`);
+        setBooking(data);
       } catch (error) {
-        toast.error('Failed to load booking');
+        console.error('Error fetching booking:', error);
+        const errorMessage = error.response?.data?.message || 'Failed to load booking';
+        toast.error(errorMessage);
         navigate('/');
       } finally {
         setLoading(false);
       }
     };
 
-    if (user) {
+    if (user && id) {
       fetchBooking();
     }
   }, [id, user, navigate]);
@@ -51,10 +44,12 @@ const BookingDetails = () => {
         bookingId: booking._id,
         status,
       });
-      toast.success('Status updated');
+      toast.success('Status updated successfully');
       window.location.reload();
     } catch (error) {
-      toast.error('Failed to update status');
+      console.error('Error updating status:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to update booking status';
+      toast.error(errorMessage);
     }
   };
 
