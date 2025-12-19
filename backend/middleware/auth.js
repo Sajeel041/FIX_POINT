@@ -20,6 +20,11 @@ export const protect = async (req, res, next) => {
       if (!req.user) {
         return res.status(401).json({ message: 'User not found' });
       }
+
+      // Ensure roles array exists
+      if (!req.user.roles || req.user.roles.length === 0) {
+        req.user.roles = [req.user.role || 'customer'];
+      }
       
       next();
     } catch (error) {

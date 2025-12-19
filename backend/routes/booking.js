@@ -128,17 +128,26 @@ router.patch('/status', protect, async (req, res) => {
       : booking.customerId.toString();
     const userIdStr = req.user._id.toString();
 
-    if (
-      req.user.roles && req.user.roles.includes('merchant') &&
-      merchantIdStr !== userIdStr
-    ) {
-      return res.status(403).json({ message: 'Not authorized to update this booking' });
-    }
+    // Get user roles (handle both roles array and single role field)
+    const userRoles = req.user.roles || (req.user.role ? [req.user.role] : ['customer']);
+    const isMerchant = userRoles.includes('merchant');
+    const isCustomer = userRoles.includes('customer');
 
-    if (
-      req.user.roles && req.user.roles.includes('customer') &&
-      customerIdStr !== userIdStr
-    ) {
+    // Check if user is authorized to update this booking
+    const isAuthorizedMerchant = isMerchant && merchantIdStr === userIdStr;
+    const isAuthorizedCustomer = isCustomer && customerIdStr === userIdStr;
+
+    if (!isAuthorizedMerchant && !isAuthorizedCustomer) {
+      console.error('Authorization failed:', {
+        userId: userIdStr,
+        merchantId: merchantIdStr,
+        customerId: customerIdStr,
+        userRoles,
+        isMerchant,
+        isCustomer,
+        isAuthorizedMerchant,
+        isAuthorizedCustomer
+      });
       return res.status(403).json({ message: 'Not authorized to update this booking' });
     }
 
